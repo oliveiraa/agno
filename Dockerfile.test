@@ -1,0 +1,32 @@
+FROM python:3.12-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY libs/agno/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install test dependencies
+RUN pip install --no-cache-dir pytest pytest-asyncio graphiti-core google-generativeai
+
+# Install agno in development mode
+COPY libs/agno /app/libs/agno
+RUN cd /app/libs/agno && pip install -e .
+
+# Set environment variables
+ENV PYTHONPATH="/app/libs/agno:$PYTHONPATH"
+ENV NEO4J_URI="neo4j://neo4j:7687"
+ENV NEO4J_USER="neo4j"
+ENV NEO4J_PASSWORD="testpassword"
+ENV OPENAI_API_KEY="dummy-key-for-testing"
+
+# Keep container running
+CMD ["tail", "-f", "/dev/null"]

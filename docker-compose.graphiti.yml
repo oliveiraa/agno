@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  neo4j:
+    image: neo4j:5.15
+    container_name: agno-graphiti-neo4j
+    ports:
+      - "7474:7474"  # Neo4j HTTP interface
+      - "7687:7687"  # Neo4j Bolt protocol
+    environment:
+      NEO4J_AUTH: neo4j/testpassword
+      NEO4J_dbms_security_procedures_unrestricted: gds.*,apoc.*
+      NEO4J_dbms_security_procedures_allowlist: gds.*,apoc.*
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+      # Allow vector similarity for Graphiti
+      NEO4J_dbms_default__listen__address: 0.0.0.0
+      NEO4J_dbms_connector_bolt_listen__address: 0.0.0.0:7687
+      NEO4J_dbms_connector_http_listen__address: 0.0.0.0:7474
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_import:/var/lib/neo4j/import
+      - neo4j_plugins:/plugins
+    networks:
+      - agno-graphiti
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7474/"] 
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  agno-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: agno-graphiti-test
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      NEO4J_URI: neo4j://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: testpassword
+      OPENAI_API_KEY: dummy-key-for-testing
+    volumes:
+      - ./libs/agno:/app/libs/agno
+      - ./tests:/app/tests
+      - ./benchmarks:/app/benchmarks
+    networks:
+      - agno-graphiti
+    working_dir: /app/libs/agno
+    command: tail -f /dev/null  # Keep container running for manual test execution
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_import:
+  neo4j_plugins:
+
+networks:
+  agno-graphiti:
+    driver: bridge
